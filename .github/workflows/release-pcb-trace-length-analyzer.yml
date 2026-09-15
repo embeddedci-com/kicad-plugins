@@ -1,0 +1,274 @@
+# Release a version of the PCB Trace Length Analyzer to this repository.
+#
+# Run it from the Actions tab: Release PCB Trace Length Analyzer -> Run workflow.
+#
+# It builds from a clean checkout of the plugin's source at the ref you give,
+# with emi-analyzer beside it (the report's board viewer comes from there), runs
+# the tests, and builds the package with `make pcm-release`. With "publish" on it
+# then uploads the archive as a release here and commits the updated
+# packages.json, resources.zip and repository.json -- in that order, so the
+# repository never points at an archive that is not there yet. With "publish"
+# off it stops after the build and keeps the archive as a workflow artifact, to
+# look at before releasing.
+#
+# Before running: bump __version__ in kicad-plugin/trace_length_analyzer/__init__.py
+# in the source repository to the version you are releasing, and push it.
+
+name: Release PCB Trace Length Analyzer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.1.1 (must match __version__ in the source)"
+        required: true
+        type: string
+      ref:
+        description: "Source ref to build: a tag, branch or commit of embeddedci-com/pcb-length-tracer-analyzer"
+        required: true
+        default: main
+        type: string
+      emi_ref:
+        description: "emi-analyzer ref to build the board viewer from"
+        required: true
+        default: main
+        type: string
+      status:
+        description: "Status shown in KiCad's Plugin and Content Manager"
+        required: true
+        default: testing
+        type: choice
+        options: [testing, stable, development, deprecated]
+      publish:
+        description: "Publish: create the release and update the repository. Off = build and test only."
+        required: true
+        default: false
+        type: boolean
+      replace:
+        description: "Allow replacing a version that is already released (re-release of a broken archive)"
+        required: true
+        default: false
+        type: boolean
+
+# Two releases at once would both rewrite packages.json.
+concurrency:
+  group: pcm-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_REPO: embeddedci-com/pcb-length-tracer-analyzer
+  PACKAGE: pcb-trace-length-analyzer
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]{1,4}(\.[0-9]{1,4}(\.[0-9]{1,6})?)?$ ]]; then
+            echo "::error::version '$VERSION' is not major[.minor[.patch]], which is all KiCad accepts"
+            exit 1
+          fi
+
+      # Layout the build expects: the source and emi-analyzer side by side (the
+      # webapp reaches the viewer at ../../emi-analyzer), and this repository
+      # checked out separately to be updated.
+      - name: Check out the plugin source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ inputs.ref }}
+          path: src/pcb-length-tracer-analyzer
+
+      - name: Check out emi-analyzer
+        uses: actions/checkout@v4
+        with:
+          repository: embeddedci-com/emi-analyzer
+          ref: ${{ inputs.emi_ref }}
+          path: src/emi-analyzer
+
+      - name: Check out this repository
+        uses: actions/checkout@v4
+        with:
+          path: kicad-plugins
+
+      - name: Check the source says this version
+        working-directory: src/pcb-length-tracer-analyzer
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! grep -q "__version__ = \"$VERSION\"" kicad-plugin/trace_length_analyzer/__init__.py; then
+            echo "::error::kicad-plugin/trace_length_analyzer/__init__.py at ${{ inputs.ref }} is not version $VERSION:"
+            grep __version__ kicad-plugin/trace_length_analyzer/__init__.py
+            exit 1
+          fi
+
+      - name: Check the version is not already released
+        env:
+          VERSION: ${{ inputs.version }}
+          REPLACE: ${{ inputs.replace }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$PACKAGE-v$VERSION"
+          released=no
+          if python3 - "$VERSION" <<'EOF'
+          import json, sys
+          try:
+              pkgs = json.load(open("kicad-plugins/packages.json"))["packages"]
+          except FileNotFoundError:
+              sys.exit(1)
+          found = any(v["version"] == sys.argv[1]
+                      for p in pkgs if p["identifier"] == "com.embeddedci.pcb-trace-length-analyzer"
+                      for v in p["versions"])
+          sys.exit(0 if found else 1)
+          EOF
+          then released=yes; fi
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then released=yes; fi
+          if [ "$released" = yes ] && [ "$REPLACE" != true ]; then
+            echo "::error::$VERSION is already released ($tag). Bump the version, or run again with 'replace' on."
+            exit 1
+          fi
+          echo "RELEASED=$released" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/pcb-length-tracer-analyzer/go.mod
+          cache-dependency-path: src/pcb-length-tracer-analyzer/go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            src/pcb-length-tracer-analyzer/webapp/package-lock.json
+            src/emi-analyzer/webapp/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix src/pcb-length-tracer-analyzer/webapp --no-audit --no-fund
+          # The viewer's source resolves its imports against its own
+          # node_modules, so the type check needs them too.
+          npm ci --prefix src/emi-analyzer/webapp --no-audit --no-fund
+          # pytest for the plugin tests; kicad-python and jsonschema so the
+          # package is checked with KiCad's own validator. Not PySide6: the
+          # web view test needs a display and is skipped.
+          python -m pip install --quiet pytest kicad-python jsonschema
+
+      - name: Test the engine and the report
+        working-directory: src/pcb-length-tracer-analyzer
+        run: make test
+
+      - name: Build the package
+        working-directory: src/pcb-length-tracer-analyzer
+        env:
+          VERSION: ${{ inputs.version }}
+          STATUS: ${{ inputs.status }}
+        run: |
+          make pcm-release VERSION="$VERSION" PCM_STATUS="$STATUS" \
+            PCM_REPO="$GITHUB_WORKSPACE/kicad-plugins" PCM_GITHUB="$GITHUB_REPOSITORY"
+          echo "ARCHIVE=$PWD/dist/pcm/$PACKAGE-$VERSION.zip" >> "$GITHUB_ENV"
+          echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "EMI_SHA=$(git -C ../emi-analyzer rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      # After the package is built, so the release-format tests run against
+      # the real web bundle and engines rather than skipping.
+      - name: Test the plugin
+        working-directory: src/pcb-length-tracer-analyzer
+        run: |
+          make build
+          cd kicad-plugin && python -m pytest -q -p no:cacheprovider tests
+
+      - name: Validate the package with KiCad's own checker
+        run: python -m kipy.packaging validate "$ARCHIVE"
+
+      - name: Keep the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE }}-${{ inputs.version }}
+          path: |
+            ${{ env.ARCHIVE }}
+            kicad-plugins/packages.json
+            kicad-plugins/repository.json
+            kicad-plugins/resources.zip
+          if-no-files-found: error
+
+      - name: Summary
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "## PCB Trace Length Analyzer $VERSION"
+            echo
+            echo "- source: [$SOURCE_REPO@${SOURCE_SHA:0:12}](https://github.com/$SOURCE_REPO/commit/$SOURCE_SHA)"
+            echo "- emi-analyzer: [${EMI_SHA:0:12}](https://github.com/embeddedci-com/emi-analyzer/commit/$EMI_SHA)"
+            echo "- archive: $(basename "$ARCHIVE"), $(stat -c %s "$ARCHIVE") bytes, sha256 \`$(sha256sum "$ARCHIVE" | cut -c1-64)\`"
+            echo "- status: ${{ inputs.status }}"
+            if [ "${{ inputs.publish }}" = true ]; then echo "- **published**"; else echo "- not published (build only)"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- publish ----
+
+      - name: Create the release
+        if: inputs.publish
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$PACKAGE-v$VERSION"
+          notes="PCB Trace Length Analyzer $VERSION, status \"${{ inputs.status }}\" in the Plugin and Content Manager.
+
+          Install through the Plugin and Content Manager (see the README) rather than downloading this archive by hand.
+
+          Built from $SOURCE_REPO@$SOURCE_SHA and embeddedci-com/emi-analyzer@$EMI_SHA."
+          prerelease=--prerelease
+          [ "${{ inputs.status }}" = stable ] && prerelease=
+          if [ "$RELEASED" = yes ] && gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$ARCHIVE" --clobber -R "$GITHUB_REPOSITORY"
+            gh release edit "$tag" --notes "$notes" -R "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "$ARCHIVE" -R "$GITHUB_REPOSITORY" \
+              --title "PCB Trace Length Analyzer $VERSION" --notes "$notes" $prerelease
+          fi
+
+      - name: Check the uploaded archive is the one packages.json names
+        if: inputs.publish
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$PACKAGE-v$VERSION/$PACKAGE-$VERSION.zip"
+          want=$(python3 -c "import json,sys; print(next(v['download_sha256'] for p in json.load(open('kicad-plugins/packages.json'))['packages'] for v in p['versions'] if v['version']=='$VERSION'))")
+          for i in 1 2 3 4 5; do
+            got=$(curl -fsSL "$url" | sha256sum | cut -c1-64) && [ "$got" = "$want" ] && break
+            sleep 5
+          done
+          if [ "$got" != "$want" ]; then
+            echo "::error::the release archive hashes to $got, packages.json expects $want; not publishing the repository files"
+            exit 1
+          fi
+
+      - name: Publish the repository files
+        if: inputs.publish
+        working-directory: kicad-plugins
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add packages.json repository.json resources.zip
+          if git diff --cached --quiet; then
+            echo "nothing changed in the repository files"
+            exit 0
+          fi
+          git commit -m "PCB Trace Length Analyzer $VERSION" \
+            -m "Built from $SOURCE_REPO@$SOURCE_SHA."
+          git push
