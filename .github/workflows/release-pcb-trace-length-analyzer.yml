@@ -24,7 +24,7 @@ on:
         required: true
         type: string
       ref:
-        description: "Source ref to build: a tag, branch or commit of embeddedci-com/pcb-length-tracer-analyzer"
+        description: "Source ref to build: a tag, branch or commit of embeddedci-com/pcb-trace-length-analyzer"
         required: true
         default: main
         type: string
@@ -59,7 +59,7 @@ permissions:
   contents: write
 
 env:
-  SOURCE_REPO: embeddedci-com/pcb-length-tracer-analyzer
+  SOURCE_REPO: embeddedci-com/pcb-trace-length-analyzer
   PACKAGE: pcb-trace-length-analyzer
 
 jobs:
@@ -84,7 +84,7 @@ jobs:
         with:
           repository: ${{ env.SOURCE_REPO }}
           ref: ${{ inputs.ref }}
-          path: src/pcb-length-tracer-analyzer
+          path: src/pcb-trace-length-analyzer
 
       - name: Check out emi-analyzer
         uses: actions/checkout@v4
@@ -99,7 +99,7 @@ jobs:
           path: kicad-plugins
 
       - name: Check the source says this version
-        working-directory: src/pcb-length-tracer-analyzer
+        working-directory: src/pcb-trace-length-analyzer
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -138,15 +138,15 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/pcb-length-tracer-analyzer/go.mod
-          cache-dependency-path: src/pcb-length-tracer-analyzer/go.mod
+          go-version-file: src/pcb-trace-length-analyzer/go.mod
+          cache-dependency-path: src/pcb-trace-length-analyzer/go.mod
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: |
-            src/pcb-length-tracer-analyzer/webapp/package-lock.json
+            src/pcb-trace-length-analyzer/webapp/package-lock.json
             src/emi-analyzer/webapp/package-lock.json
 
       - uses: actions/setup-python@v5
@@ -155,7 +155,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci --prefix src/pcb-length-tracer-analyzer/webapp --no-audit --no-fund
+          npm ci --prefix src/pcb-trace-length-analyzer/webapp --no-audit --no-fund
           # The viewer's source resolves its imports against its own
           # node_modules, so the type check needs them too.
           npm ci --prefix src/emi-analyzer/webapp --no-audit --no-fund
@@ -165,11 +165,11 @@ jobs:
           python -m pip install --quiet pytest kicad-python jsonschema
 
       - name: Test the engine and the report
-        working-directory: src/pcb-length-tracer-analyzer
+        working-directory: src/pcb-trace-length-analyzer
         run: make test
 
       - name: Build the package
-        working-directory: src/pcb-length-tracer-analyzer
+        working-directory: src/pcb-trace-length-analyzer
         env:
           VERSION: ${{ inputs.version }}
           STATUS: ${{ inputs.status }}
@@ -183,7 +183,7 @@ jobs:
       # After the package is built, so the release-format tests run against
       # the real web bundle and engines rather than skipping.
       - name: Test the plugin
-        working-directory: src/pcb-length-tracer-analyzer
+        working-directory: src/pcb-trace-length-analyzer
         run: |
           make build
           cd kicad-plugin && python -m pytest -q -p no:cacheprovider tests

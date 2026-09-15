@@ -38,7 +38,7 @@ Open an issue in this repository.
 
 ## Releasing
 
-1. In [pcb-length-tracer-analyzer](https://github.com/embeddedci-com/pcb-length-tracer-analyzer),
+1. In [pcb-trace-length-analyzer](https://github.com/embeddedci-com/pcb-trace-length-analyzer),
    set `__version__` in `kicad-plugin/trace_length_analyzer/__init__.py` to the
    new version and push.
 2. Here: **Actions → Release PCB Trace Length Analyzer → Run workflow**. Enter
