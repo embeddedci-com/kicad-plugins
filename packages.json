@@ -1,0 +1,51 @@
+{
+  "packages": [
+    {
+      "identifier": "com.embeddedci.pcb-trace-length-analyzer",
+      "name": "PCB Trace Length Analyzer",
+      "description": "Length matching for DDR, Ethernet, USB, PCIe, MIPI and SD on the open board. Runs locally; nothing is uploaded.",
+      "description_full": "Measures every interface on the board open in the PCB Editor -- DDR (per leg of the fly-by chain), Ethernet, USB, PCIe, MIPI, SD and any differential pair -- against its length target, and says for each net whether it is too short or too long and by how much.\n\nClick a net in the report to select it in KiCad, select every out-of-tolerance net at once, or select a track in KiCad and see how far its net is from target. The analysis runs on your machine: nothing is uploaded and the plugin opens no network connections.\n\nRequires KiCad 10.0.1 or newer with the API server enabled (Preferences > Plugins > Enable KiCad API). The first run installs PySide6 with QtWebEngine into the plugin's Python environment, a download of several hundred MB.",
+      "type": "plugin",
+      "author": {
+        "name": "EmbeddedCI",
+        "contact": {
+          "web": "https://embeddedci.com"
+        }
+      },
+      "maintainer": {
+        "name": "EmbeddedCI",
+        "contact": {
+          "web": "https://embeddedci.com"
+        }
+      },
+      "license": "Apache-2.0",
+      "resources": {
+        "Homepage": "https://embeddedci.com/tools/pcb-trace-length-analyzer",
+        "Bug Tracker": "https://github.com/embeddedci-com/kicad-plugins/issues"
+      },
+      "tags": [
+        "length-matching",
+        "ddr",
+        "signal-integrity",
+        "differential-pairs"
+      ],
+      "versions": [
+        {
+          "version": "0.1.0",
+          "status": "testing",
+          "kicad_version": "10.0.1",
+          "platforms": [
+            "macos",
+            "linux",
+            "windows"
+          ],
+          "runtime": "ipc",
+          "download_url": "https://github.com/embeddedci-com/kicad-plugins/releases/download/pcb-trace-length-analyzer-v0.1.0/pcb-trace-length-analyzer-0.1.0.zip",
+          "download_sha256": "634bc2af6b9c0c447a19b65a4a6bba7bd2912a73227863279d117a943b97f890",
+          "download_size": 12257281,
+          "install_size": 29483209
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "EmbeddedCI KiCad plugins",
+  "maintainer": {
+    "name": "EmbeddedCI",
+    "contact": {
+      "web": "https://embeddedci.com"
+    }
+  },
+  "packages": {
+    "url": "https://raw.githubusercontent.com/embeddedci-com/kicad-plugins/main/packages.json",
+    "sha256": "04a9172b56b4e93784b74310073510d64390f174bb52c61dc5fefb312a6fdb5b",
+    "update_timestamp": 1789482656,
+    "update_time_utc": "2026-09-15 14:30:56"
+  },
+  "resources": {
+    "url": "https://raw.githubusercontent.com/embeddedci-com/kicad-plugins/main/resources.zip",
+    "sha256": "d32a10b4620e548d8c34dc138bc1801fb6fa371994b8b5bdbbce3b56a5b28f11",
+    "update_timestamp": 1789482656,
+    "update_time_utc": "2026-09-15 14:30:56"
+  }
+}
