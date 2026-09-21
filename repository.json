@@ -9,14 +9,14 @@
   },
   "packages": {
     "url": "https://raw.githubusercontent.com/embeddedci-com/kicad-plugins/main/packages.json",
-    "sha256": "9fcd12635eb443a4657238d0431cfe6f6d108047b5795e133c8a0464266d3927",
-    "update_timestamp": 1789738240,
-    "update_time_utc": "2026-09-18 13:30:40"
+    "sha256": "4fb4ed2f26e7a99be91f25e34ebfeae62f67ca156cee3f1ae1bcf7f8653e57eb",
+    "update_timestamp": 1789998419,
+    "update_time_utc": "2026-09-21 13:46:59"
   },
   "resources": {
     "url": "https://raw.githubusercontent.com/embeddedci-com/kicad-plugins/main/resources.zip",
     "sha256": "d32a10b4620e548d8c34dc138bc1801fb6fa371994b8b5bdbbce3b56a5b28f11",
-    "update_timestamp": 1789738240,
-    "update_time_utc": "2026-09-18 13:30:40"
+    "update_timestamp": 1789998419,
+    "update_time_utc": "2026-09-21 13:46:59"
   }
 }

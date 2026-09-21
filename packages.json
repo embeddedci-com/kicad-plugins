@@ -31,6 +31,21 @@
       ],
       "versions": [
         {
+          "version": "0.1.5",
+          "status": "stable",
+          "kicad_version": "10.0.1",
+          "platforms": [
+            "macos",
+            "linux",
+            "windows"
+          ],
+          "runtime": "ipc",
+          "download_url": "https://github.com/embeddedci-com/kicad-plugins/releases/download/pcb-trace-length-analyzer-v0.1.5/pcb-trace-length-analyzer-0.1.5.zip",
+          "download_sha256": "b3e8e24b8cc232818e20255b4b7213ea0739c55c56fb0ca9be0e179618fef1df",
+          "download_size": 12461735,
+          "install_size": 30095373
+        },
+        {
           "version": "0.1.4",
           "status": "stable",
           "kicad_version": "10.0.1",
