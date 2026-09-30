@@ -1,20 +1,23 @@
-# Release a version of the PCB Trace Length Analyzer to this repository.
+# Release a version of the EMI Analyzer KiCad plugin to this repository.
 #
-# Run it from the Actions tab: Release PCB Trace Length Analyzer -> Run workflow.
+# Run it from the Actions tab: Release EMI Analyzer -> Run workflow.
 #
-# It builds from a clean checkout of the plugin's source at the ref you give,
-# with emi-analyzer beside it (the report's board viewer comes from there), runs
-# the tests, and builds the package with `make pcm-release`. With "publish" on it
-# then uploads the archive as a release here and commits the updated
-# packages.json, resources.zip and repository.json -- in that order, so the
-# repository never points at an archive that is not there yet. With "publish"
-# off it stops after the build and keeps the archive as a workflow artifact, to
-# look at before releasing.
+# It builds from a clean checkout of embeddedci-com/emi-analyzer at the ref you
+# give, runs the plugin tests, and builds the package with `make pcm-release`.
+# With "publish" on it then uploads the archive as a release here and commits
+# the updated packages.json, resources.zip and repository.json -- in that
+# order, so the repository never points at an archive that is not there yet.
+# With "publish" off it stops after the build and keeps the archive as a
+# workflow artifact, to look at before releasing.
 #
-# Before running: bump __version__ in kicad-plugin/trace_length_analyzer/__init__.py
-# in the source repository to the version you are releasing, and push it.
+# The plugin is a front end to the EMI Analyzer desktop app (0.2.0 or newer),
+# which users install separately. It ships no engine, so there is nothing to
+# compile here.
+#
+# Before running: bump __version__ in kicad-plugin/emi_analyzer/__init__.py
+# in emi-analyzer to the version you are releasing, and push it.
 
-name: Release PCB Trace Length Analyzer
+name: Release EMI Analyzer
 
 on:
   workflow_dispatch:
@@ -24,21 +27,16 @@ on:
         required: true
         type: string
       ref:
-        description: "Source ref to build: a tag, branch or commit of embeddedci-com/pcb-trace-length-analyzer"
-        required: true
-        default: main
-        type: string
-      emi_ref:
-        description: "emi-analyzer ref to build the board viewer from"
+        description: "Source ref to build: a tag, branch or commit of embeddedci-com/emi-analyzer"
         required: true
         default: main
         type: string
       status:
         description: "Status shown in KiCad's Plugin and Content Manager"
         required: true
-        default: testing
+        default: stable
         type: choice
-        options: [testing, stable, development, deprecated]
+        options: [stable, testing, development, deprecated]
       publish:
         description: "Publish: create the release and update the repository. Off = build and test only."
         required: true
@@ -59,13 +57,14 @@ permissions:
   contents: write
 
 env:
-  SOURCE_REPO: embeddedci-com/pcb-trace-length-analyzer
-  PACKAGE: pcb-trace-length-analyzer
+  SOURCE_REPO: embeddedci-com/emi-analyzer
+  PACKAGE: emi-analyzer
+  IDENTIFIER: com.embeddedci.emi-analyzer
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - name: Check the version
         env:
@@ -76,21 +75,11 @@ jobs:
             exit 1
           fi
 
-      # Layout the build expects: the source and emi-analyzer side by side (the
-      # webapp reaches the viewer at ../../emi-analyzer), and this repository
-      # checked out separately to be updated.
       - name: Check out the plugin source
         uses: actions/checkout@v4
         with:
           repository: ${{ env.SOURCE_REPO }}
           ref: ${{ inputs.ref }}
-          path: src/pcb-trace-length-analyzer
-
-      - name: Check out emi-analyzer
-        uses: actions/checkout@v4
-        with:
-          repository: embeddedci-com/emi-analyzer
-          ref: ${{ inputs.emi_ref }}
           path: src/emi-analyzer
 
       - name: Check out this repository
@@ -99,13 +88,13 @@ jobs:
           path: kicad-plugins
 
       - name: Check the source says this version
-        working-directory: src/pcb-trace-length-analyzer
+        working-directory: src/emi-analyzer
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          if ! grep -q "__version__ = \"$VERSION\"" kicad-plugin/trace_length_analyzer/__init__.py; then
-            echo "::error::kicad-plugin/trace_length_analyzer/__init__.py at ${{ inputs.ref }} is not version $VERSION:"
-            grep __version__ kicad-plugin/trace_length_analyzer/__init__.py
+          if ! grep -q "__version__ = \"$VERSION\"" kicad-plugin/emi_analyzer/__init__.py; then
+            echo "::error::kicad-plugin/emi_analyzer/__init__.py at ${{ inputs.ref }} is not version $VERSION:"
+            grep __version__ kicad-plugin/emi_analyzer/__init__.py
             exit 1
           fi
 
@@ -117,17 +106,17 @@ jobs:
         run: |
           tag="$PACKAGE-v$VERSION"
           released=no
-          if python3 - "$VERSION" <<'EOF'
-          import json, sys
+          if python3 - "$VERSION" <<'PY'
+          import json, os, sys
           try:
               pkgs = json.load(open("kicad-plugins/packages.json"))["packages"]
           except FileNotFoundError:
               sys.exit(1)
           found = any(v["version"] == sys.argv[1]
-                      for p in pkgs if p["identifier"] == "com.embeddedci.pcb-trace-length-analyzer"
+                      for p in pkgs if p["identifier"] == os.environ["IDENTIFIER"]
                       for v in p["versions"])
           sys.exit(0 if found else 1)
-          EOF
+          PY
           then released=yes; fi
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then released=yes; fi
           if [ "$released" = yes ] && [ "$REPLACE" != true ]; then
@@ -136,57 +125,27 @@ jobs:
           fi
           echo "RELEASED=$released" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: src/pcb-trace-length-analyzer/go.mod
-          cache-dependency-path: src/pcb-trace-length-analyzer/go.mod
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            src/pcb-trace-length-analyzer/webapp/package-lock.json
-            src/emi-analyzer/webapp/package-lock.json
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      # pytest for the plugin tests; kicad-python and jsonschema so the package
+      # is checked with KiCad's own validator. Not PySide6: the Qt tests need a
+      # display and skip themselves.
       - name: Install dependencies
-        run: |
-          npm ci --prefix src/pcb-trace-length-analyzer/webapp --no-audit --no-fund
-          # The viewer's source resolves its imports against its own
-          # node_modules, so the type check needs them too.
-          npm ci --prefix src/emi-analyzer/webapp --no-audit --no-fund
-          # pytest for the plugin tests; kicad-python and jsonschema so the
-          # package is checked with KiCad's own validator. Not PySide6: the
-          # web view test needs a display and is skipped.
-          python -m pip install --quiet pytest kicad-python jsonschema
+        run: python -m pip install --quiet pytest kicad-python jsonschema
 
-      - name: Test the engine and the report
-        working-directory: src/pcb-trace-length-analyzer
-        run: make test
-
+      # make pcm-release runs the plugin tests first.
       - name: Build the package
-        working-directory: src/pcb-trace-length-analyzer
+        working-directory: src/emi-analyzer
         env:
           VERSION: ${{ inputs.version }}
           STATUS: ${{ inputs.status }}
         run: |
-          make pcm-release VERSION="$VERSION" PCM_STATUS="$STATUS" \
+          make pcm-release VERSION="$VERSION" PCM_STATUS="$STATUS" PLUGIN_PY=python \
             PCM_REPO="$GITHUB_WORKSPACE/kicad-plugins" PCM_GITHUB="$GITHUB_REPOSITORY"
-          echo "ARCHIVE=$PWD/dist/pcm/$PACKAGE-$VERSION.zip" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$PWD/dist/pcm/$PACKAGE-kicad-plugin-$VERSION.zip" >> "$GITHUB_ENV"
           echo "SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
-          echo "EMI_SHA=$(git -C ../emi-analyzer rev-parse HEAD)" >> "$GITHUB_ENV"
-
-      # After the package is built, so the release-format tests run against
-      # the real web bundle and engines rather than skipping.
-      - name: Test the plugin
-        working-directory: src/pcb-trace-length-analyzer
-        run: |
-          make build
-          cd kicad-plugin && python -m pytest -q -p no:cacheprovider tests
 
       - name: Validate the package with KiCad's own checker
         run: python -m kipy.packaging validate "$ARCHIVE"
@@ -207,10 +166,9 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           {
-            echo "## PCB Trace Length Analyzer $VERSION"
+            echo "## EMI Analyzer $VERSION"
             echo
             echo "- source: [$SOURCE_REPO@${SOURCE_SHA:0:12}](https://github.com/$SOURCE_REPO/commit/$SOURCE_SHA)"
-            echo "- emi-analyzer: [${EMI_SHA:0:12}](https://github.com/embeddedci-com/emi-analyzer/commit/$EMI_SHA)"
             echo "- archive: $(basename "$ARCHIVE"), $(stat -c %s "$ARCHIVE") bytes, sha256 \`$(sha256sum "$ARCHIVE" | cut -c1-64)\`"
             echo "- status: ${{ inputs.status }}"
             if [ "${{ inputs.publish }}" = true ]; then echo "- **published**"; else echo "- not published (build only)"; fi
@@ -225,11 +183,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="$PACKAGE-v$VERSION"
-          notes="PCB Trace Length Analyzer $VERSION, status \"${{ inputs.status }}\" in the Plugin and Content Manager.
+          notes="EMI Analyzer KiCad plugin $VERSION, status \"${{ inputs.status }}\" in the Plugin and Content Manager.
 
-          Install through the Plugin and Content Manager (see the README) rather than downloading this archive by hand.
+          Install through the Plugin and Content Manager (see the README) rather than downloading this archive by hand. The plugin needs the EMI Analyzer desktop app 0.2.0 or newer: https://github.com/$SOURCE_REPO/releases
 
-          Built from $SOURCE_REPO@$SOURCE_SHA and embeddedci-com/emi-analyzer@$EMI_SHA."
+          Built from $SOURCE_REPO@$SOURCE_SHA."
           prerelease=--prerelease
           [ "${{ inputs.status }}" = stable ] && prerelease=
           if [ "$RELEASED" = yes ] && gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -237,7 +195,7 @@ jobs:
             gh release edit "$tag" --notes "$notes" -R "$GITHUB_REPOSITORY"
           else
             gh release create "$tag" "$ARCHIVE" -R "$GITHUB_REPOSITORY" \
-              --title "PCB Trace Length Analyzer $VERSION" --notes "$notes" $prerelease
+              --title "EMI Analyzer $VERSION" --notes "$notes" --latest=false $prerelease
           fi
 
       - name: Check the uploaded archive is the one packages.json names
@@ -245,8 +203,8 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$PACKAGE-v$VERSION/$PACKAGE-$VERSION.zip"
-          want=$(python3 -c "import json,sys; print(next(v['download_sha256'] for p in json.load(open('kicad-plugins/packages.json'))['packages'] if p['identifier']=='com.embeddedci.pcb-trace-length-analyzer' for v in p['versions'] if v['version']=='$VERSION'))")
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$PACKAGE-v$VERSION/$PACKAGE-kicad-plugin-$VERSION.zip"
+          want=$(python3 -c "import json,os; print(next(v['download_sha256'] for p in json.load(open('kicad-plugins/packages.json'))['packages'] if p['identifier']==os.environ['IDENTIFIER'] for v in p['versions'] if v['version']=='$VERSION'))")
           for i in 1 2 3 4 5; do
             got=$(curl -fsSL "$url" | sha256sum | cut -c1-64) && [ "$got" = "$want" ] && break
             sleep 5
@@ -269,6 +227,6 @@ jobs:
             echo "nothing changed in the repository files"
             exit 0
           fi
-          git commit -m "PCB Trace Length Analyzer $VERSION" \
+          git commit -m "EMI Analyzer $VERSION" \
             -m "Built from $SOURCE_REPO@$SOURCE_SHA."
           git push

@@ -20,10 +20,11 @@ lists, installs and updates our plugins for you.
 | Plugin | What it does | Needs |
 |--------|--------------|-------|
 | **PCB Trace Length Analyzer** | Length matching for DDR, Ethernet, USB, PCIe, MIPI and SD on the board open in the PCB Editor: which nets are too short or too long and by how much, and selecting them in KiCad. Runs locally; nothing is uploaded. | KiCad 10.0.1+, with **Preferences → Plugins → Enable KiCad API** on |
+| **EMI Analyzer** | EMI and EMC review of the board open in the PCB Editor: layout causes of radiated emissions, ESD and immunity checks, and a cable budget. Click a finding to select its net in KiCad. A front end for the [EMI Analyzer desktop app](https://github.com/embeddedci-com/emi-analyzer/releases), which runs everything on your computer. | KiCad 10.0.1+, with **Preferences → Plugins → Enable KiCad API** on, and the EMI Analyzer app 0.2.0 or newer |
 
-The Trace Length Analyzer's first run installs PySide6 with QtWebEngine into its
-own Python environment, a download of several hundred MB. Its toolbar buttons
-appear in the PCB Editor after that.
+Each plugin's first run installs PySide6 with QtWebEngine into its own Python
+environment, a download of several hundred MB. Its toolbar buttons appear in the
+PCB Editor after that.
 
 ## Problems
 
@@ -38,15 +39,19 @@ Open an issue in this repository.
 
 ## Releasing
 
-1. In [pcb-trace-length-analyzer](https://github.com/embeddedci-com/pcb-trace-length-analyzer),
-   set `__version__` in `kicad-plugin/trace_length_analyzer/__init__.py` to the
-   new version and push.
-2. Here: **Actions → Release PCB Trace Length Analyzer → Run workflow**. Enter
-   the version, and turn **publish** on. With publish off it only builds and
-   tests, and keeps the archive as a workflow artifact.
+1. In the plugin's source repository, set `__version__` to the new version and
+   push:
+   - PCB Trace Length Analyzer: `kicad-plugin/trace_length_analyzer/__init__.py` in
+     [pcb-trace-length-analyzer](https://github.com/embeddedci-com/pcb-trace-length-analyzer)
+   - EMI Analyzer: `kicad-plugin/emi_analyzer/__init__.py` in
+     [emi-analyzer](https://github.com/embeddedci-com/emi-analyzer)
+2. Here: **Actions → Release PCB Trace Length Analyzer** (or **Release EMI
+   Analyzer**) **→ Run workflow**. Enter the version, and turn **publish** on.
+   With publish off it only builds and tests, and keeps the archive as a
+   workflow artifact.
 
-The workflow builds from a clean checkout of the source and of emi-analyzer,
-runs the tests and KiCad's package validator, uploads the archive as a release,
-checks the uploaded file's hash, and only then commits the repository files.
+The workflows build from a clean checkout of the source, run the tests and
+KiCad's package validator, upload the archive as a release, check the uploaded
+file's hash, and only then commit the repository files.
 
 The plugins are licensed under the Apache License 2.0 (see `LICENSE`).
