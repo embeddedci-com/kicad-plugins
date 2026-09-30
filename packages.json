@@ -1,6 +1,54 @@
 {
   "packages": [
     {
+      "identifier": "com.embeddedci.emi-analyzer",
+      "name": "EMI Analyzer",
+      "description": "EMI and EMC review of the open board: the layout causes of radiated emissions, ESD and immunity checks, and a cable budget. Runs locally; nothing is uploaded.",
+      "description_full": "Checks the board open in the PCB Editor for the layout mistakes behind most radiated emission and immunity failures: a trace crossing a gap in its reference plane, a layer change with no return via nearby, an unterminated via stub, copper close to the board edge, missing ESD protection, unshielded I/O and cable resonances. Click a finding to select its net in KiCad, or select everything flagged at once.\n\nThis plugin is a front end. The analysis, your boards and the results all belong to the EMI Analyzer desktop app, which you install separately and which runs everything on your own computer -- nothing is uploaded and the plugin opens no network connections beyond the app on localhost. Install it from https://github.com/embeddedci-com/emi-analyzer.\n\nRequires KiCad 10.0.1 or newer with the API server enabled (Preferences > Plugins > Enable KiCad API). The first run installs PySide6 with QtWebEngine into the plugin's Python environment, a download of several hundred MB.",
+      "type": "plugin",
+      "author": {
+        "name": "EmbeddedCI",
+        "contact": {
+          "web": "https://embeddedci.com"
+        }
+      },
+      "maintainer": {
+        "name": "EmbeddedCI",
+        "contact": {
+          "web": "https://embeddedci.com"
+        }
+      },
+      "license": "Apache-2.0",
+      "resources": {
+        "Homepage": "https://github.com/embeddedci-com/emi-analyzer",
+        "Bug Tracker": "https://github.com/embeddedci-com/emi-analyzer/issues"
+      },
+      "tags": [
+        "emi",
+        "emc",
+        "esd",
+        "signal-integrity",
+        "compliance"
+      ],
+      "versions": [
+        {
+          "version": "0.1.0",
+          "status": "stable",
+          "kicad_version": "10.0.1",
+          "platforms": [
+            "macos",
+            "linux",
+            "windows"
+          ],
+          "runtime": "ipc",
+          "download_url": "https://github.com/embeddedci-com/kicad-plugins/releases/download/emi-analyzer-v0.1.0/emi-analyzer-kicad-plugin-0.1.0.zip",
+          "download_sha256": "9b95c68df8b10f3f0e2d626504d476d9a62d1cb6b9090754013351a248965b97",
+          "download_size": 46011,
+          "install_size": 94978
+        }
+      ]
+    },
+    {
       "identifier": "com.embeddedci.pcb-trace-length-analyzer",
       "name": "PCB Trace Length Analyzer",
       "description": "Length matching for DDR, Ethernet, USB, PCIe, MIPI and SD on the open board. Runs locally; nothing is uploaded.",
