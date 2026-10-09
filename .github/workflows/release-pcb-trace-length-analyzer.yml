@@ -64,7 +64,8 @@ env:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # Pinned to ubuntu-24.04: ubuntu-latest moves to Ubuntu 26 from 2026-10-19. Unpin once 26.04 is verified.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Check the version
